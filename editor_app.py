@@ -270,3 +270,6 @@ class ImageEditorApp:
         self.model.set_image(out)
         self.show_image()
         self._set_status("Cropped Center 50% (cut)")
+
+
+
