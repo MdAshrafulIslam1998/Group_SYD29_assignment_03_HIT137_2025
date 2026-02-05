@@ -116,3 +116,104 @@ class ImageEditorApp:
         return True
 
 
+
+
+    def _save_to(self, path):
+        ok = cv2.imwrite(path, self.model.image)
+        if not ok:
+            messagebox.showerror("Save error", "Could not save the image.")
+            return
+        self.model.path = path
+        self.model.dirty = False
+        self._set_status("Saved")
+
+    def on_exit(self):
+        if self.model.dirty:
+            ok = messagebox.askyesno("Exit", "Unsaved changes. Exit anyway?")
+            if not ok:
+                return
+        self.root.destroy()
+
+
+
+
+
+    def show_image(self):
+        self.canvas.delete("all")
+        if self.model.image is None:
+            self.canvas.create_text(
+                self.canvas.winfo_width() // 2,
+                self.canvas.winfo_height() // 2,
+                text="Open an image",
+                fill="white",
+                font=("Segoe UI", 16)
+            )
+            return
+
+        rgb = cv2.cvtColor(self.model.image, cv2.COLOR_BGR2RGB)
+        pil = Image.fromarray(rgb)
+
+        cw = max(1, self.canvas.winfo_width())
+        ch = max(1, self.canvas.winfo_height())
+
+        iw, ih = pil.size
+        scale = min(cw / iw, ch / ih)
+        new_w, new_h = max(1, int(iw * scale)), max(1, int(ih * scale))
+        pil = pil.resize((new_w, new_h), Image.Resampling.LANCZOS)
+
+        self.photo = ImageTk.PhotoImage(pil)
+        x = (cw - new_w) // 2
+        y = (ch - new_h) // 2
+        self.canvas.create_image(x, y, anchor="nw", image=self.photo)
+
+
+    def undo(self):
+        if self.model.undo():
+            self.show_image()
+            self._set_status("Undo")
+        else:
+            self._set_status("Nothing to undo")
+
+    def redo(self):
+        if self.model.redo():
+            self.show_image()
+            self._set_status("Redo")
+        else:
+            self._set_status("Nothing to redo")
+
+   
+    def do_grayscale(self):
+        self._apply(self.tools.grayscale, "Applied Grayscale")
+
+    def do_edge(self):
+        self._apply(self.tools.edge, "Applied Edge Detect")
+
+    def do_brightness(self, beta):
+        self._apply(lambda img: self.tools.brightness(img, beta), "Applied Brightness +30")
+
+    def do_contrast(self, alpha):
+        self._apply(lambda img: self.tools.contrast(img, alpha), "Applied Contrast x1.2")
+
+    def do_rotate(self):
+        self._apply(self.tools.rotate90, "Applied Rotate 90°")
+
+    def do_flip(self):
+        self._apply(self.tools.flip_h, "Applied Flip Horizontal")
+
+    def do_blur(self):
+        intensity = int(float(self.blur_scale.get()))
+        self._apply(lambda img: self.tools.blur(img, intensity), f"Applied Blur intensity={intensity}")
+
+    def do_crop_50(self):
+
+        if not self._need_image():
+            return
+        if self.model.original is None:
+            messagebox.showinfo("Crop", "No original image stored. Open an image again.")
+            return
+
+        self.model.push()
+        out = self.tools.crop_center_percent(self.model.original, 50)
+        self.model.set_image(out)
+        self.show_image()
+        self._set_status("Cropped Center 50% (cut)")
